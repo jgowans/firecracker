@@ -290,6 +290,7 @@ impl std::convert::From<StartMicrovmError> for VmmActionError {
             StartMicrovmError::CreateVsockDevice(_) => ErrorKind::User,
             StartMicrovmError::CreateBlockDevice(_)
             | StartMicrovmError::CreateNetDevice(_)
+            | StartMicrovmError::CreateBalloonDevice(_)
             | StartMicrovmError::KernelCmdline(_)
             | StartMicrovmError::KernelLoader(_)
             | StartMicrovmError::MicroVMAlreadyRunning
@@ -310,6 +311,7 @@ impl std::convert::From<StartMicrovmError> for VmmActionError {
             | StartMicrovmError::RegisterBlockDevice(_)
             | StartMicrovmError::RegisterEvent
             | StartMicrovmError::RegisterNetDevice(_)
+            | StartMicrovmError::RegisterBalloonDevice(_)
             | StartMicrovmError::SeccompFilters(_)
             | StartMicrovmError::Vcpu(_)
             | StartMicrovmError::VcpuConfigure(_)
@@ -902,6 +904,34 @@ impl Vmm {
         Ok(())
     }
 
+    fn attach_balloon_device(
+        &mut self,
+        device_manager: &mut MMIODeviceManager,
+    ) -> std::result::Result<(), StartMicrovmError> {
+
+        let kernel_config = self
+            .kernel_config
+            .as_mut()
+            .ok_or(StartMicrovmError::MissingKernelConfig)?;
+
+        let balloon_box = Box::new(
+            devices::virtio::Balloon::new()
+                .map_err(StartMicrovmError::CreateBalloonDevice)?,
+        );
+
+        device_manager
+            .register_device(
+                self.vm.get_fd(),
+                balloon_box,
+                &mut kernel_config.cmdline,
+                None,
+            )
+            .map_err(StartMicrovmError::RegisterBalloonDevice)?;
+
+        Ok(())
+
+    }
+
     fn attach_net_devices(
         &mut self,
         device_manager: &mut MMIODeviceManager,
@@ -1073,6 +1103,7 @@ impl Vmm {
         self.attach_net_devices(&mut device_manager)?;
         #[cfg(feature = "vsock")]
         self.attach_vsock_devices(&mut device_manager, &guest_mem)?;
+        self.attach_balloon_device(&mut device_manager)?;
 
         self.mmio_device_manager = Some(device_manager);
         Ok(())

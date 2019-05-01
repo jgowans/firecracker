@@ -52,6 +52,8 @@ pub enum StartMicrovmError {
     /// Unable to seek the block device backing file due to invalid permissions or
     /// the file was deleted/corrupted.
     CreateBlockDevice(std::io::Error),
+    /// Creating balloon device failed.
+    CreateBalloonDevice(std::io::Error),
     /// Split this at some point.
     /// Internal errors are due to resource exhaustion.
     /// Users errors are due to invalid permissions.
@@ -85,6 +87,8 @@ pub enum StartMicrovmError {
     OpenBlockDevice(std::io::Error),
     /// Cannot initialize a MMIO Block Device or add a device to the MMIO Bus.
     RegisterBlockDevice(device_manager::mmio::Error),
+    /// Registration problem
+    RegisterBalloonDevice(device_manager::mmio::Error),
     /// Cannot add event to Epoll.
     RegisterEvent,
     /// Cannot initialize a MMIO Network Device or add a device to the MMIO Bus.
@@ -124,6 +128,12 @@ impl Display for StartMicrovmError {
                 f,
                 "Unable to seek the block device backing file due to invalid permissions or \
                  the file was deleted/corrupted. Error number: {}",
+                err
+            ),
+            CreateBalloonDevice(ref err) => write!(
+                f,
+                "Unable to create balloon device because james has no clue what he is doing \
+                 Error number: {}",
                 err
             ),
             CreateRateLimiter(ref err) => write!(f, "Cannot create RateLimiter: {}", err),
@@ -187,6 +197,15 @@ impl Display for StartMicrovmError {
                 write!(
                     f,
                     "Cannot initialize a MMIO Block Device or add a device to the MMIO Bus. {}",
+                    err_msg
+                )
+            }
+            RegisterBalloonDevice(ref err) => {
+                let mut err_msg = format!("{:?}", err);
+                err_msg = err_msg.replace("\"", "");
+                write!(
+                    f,
+                    "Cannot initialize a balloon device. {}",
                     err_msg
                 )
             }
